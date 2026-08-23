@@ -1,0 +1,5 @@
+tenancy_ocid     = "REPLACE_ME"
+user_ocid        = "REPLACE_ME"
+fingerprint      = "REPLACE_ME"
+private_key_path = "REPLACE_ME"
+ssh_public_key   = "REPLACE_ME"
