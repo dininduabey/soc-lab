@@ -1,0 +1,22 @@
+plugin: oracle.oci.oci
+
+config_file: ~/.oci/config
+config_profile: DEFAULT
+
+regions:
+  - eu-frankfurt-1
+
+compartments:
+  - compartment_ocid: "ocid1.tenancy.oc1..aaaaaaaad4424xnzxr3ee7pz5b35hmnbduh5etvhc7jymi6h7wb22qd2nx7a"
+    fetch_hosts_from_subcompartments: false
+
+hostname_format: private_ip
+strict_hostname_checking: "no"
+
+keyed_groups:
+  - key: freeform_tags.role
+    prefix: role
+    separator: "_"
+
+compose:
+  ansible_host: public_ip if public_ip else private_ip
