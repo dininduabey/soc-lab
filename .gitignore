@@ -1,0 +1,20 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+*.tfvars
+*.tfvars.json
+override.tf
+tfplan
+
+# Secrets & keys
+*.pem
+*.key
+*.ppk
+.oci/
+
+# Ansible
+*.retry
+inventory/hosts.generated
