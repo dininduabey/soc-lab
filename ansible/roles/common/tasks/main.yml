@@ -1,0 +1,100 @@
+---
+- name: Wait for cloud-init to finish
+  ansible.builtin.command: cloud-init status --wait
+  changed_when: false
+  failed_when: false
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ system_timezone }}"
+  become: true
+  ignore_errors: true
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+    lock_timeout: 300
+  become: true
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: safe
+    lock_timeout: 300
+  become: true
+
+- name: Install baseline packages
+  ansible.builtin.apt:
+    name:
+      - fail2ban
+      - unattended-upgrades
+      - curl
+      - vim
+      - htop
+      - net-tools
+      - auditd
+    state: present
+    lock_timeout: 300
+  become: true
+
+- name: Ensure sshd privilege separation directory exists
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Deploy SSH hardening drop-in
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/01-soclab-hardening.conf
+    mode: '0644'
+    content: |
+      # Managed by Ansible. Named 01- so it is read before cloud-init's
+      # drop-in; sshd uses the first value it encounters for each keyword.
+      PermitRootLogin {{ ssh_permit_root_login }}
+      PasswordAuthentication {{ ssh_password_authentication }}
+      MaxAuthTries {{ ssh_max_auth_tries }}
+      ClientAliveInterval {{ ssh_client_alive_interval }}
+      X11Forwarding no
+  become: true
+  notify: restart sshd
+
+- name: Validate the full sshd configuration
+  ansible.builtin.command: sshd -t
+  changed_when: false
+  become: true
+
+- name: Configure fail2ban for sshd
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.local
+    mode: '0644'
+    content: |
+      [DEFAULT]
+      bantime  = {{ fail2ban_bantime }}
+      findtime = {{ fail2ban_findtime }}
+      maxretry = {{ fail2ban_maxretry }}
+      backend  = systemd
+
+      [sshd]
+      enabled = true
+  become: true
+  notify: restart fail2ban
+
+- name: Enable and start services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - fail2ban
+    - auditd
+  become: true
+
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: '0644'
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+  become: true
