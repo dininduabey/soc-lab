@@ -43,3 +43,27 @@ variable "arm_availability_domain" {
   type        = string
   default     = "uKkk:EU-FRANKFURT-1-AD-1"
 }
+
+# ---- Network ----
+variable "vcn_cidr" {
+  description = "Address space for the whole lab network"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidr" {
+  description = "Bastion tier — the only subnet with internet-routable hosts"
+  type        = string
+  default     = "10.0.1.0/24"
+}
+
+variable "private_subnet_cidr" {
+  description = "SIEM and victim tier — outbound only, no inbound from internet"
+  type        = string
+  default     = "10.0.2.0/24"
+}
+
+variable "admin_cidr" {
+  description = "Your public IP in CIDR form. The ONLY source allowed to SSH in."
+  type        = string
+}
