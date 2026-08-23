@@ -1,0 +1,8 @@
+---
+docker_users:
+  - ubuntu
+
+# Cap log growth — these are 1 GB / 50 GB hosts and a chatty
+# container will otherwise fill the disk with JSON.
+docker_log_max_size: "10m"
+docker_log_max_file: "3"

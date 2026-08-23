@@ -5,3 +5,10 @@
   gather_facts: true
   roles:
     - common
+
+- name: Install Docker where containers will run
+  hosts: role_victim:role_siem
+  become: true
+  gather_facts: true
+  roles:
+    - docker
