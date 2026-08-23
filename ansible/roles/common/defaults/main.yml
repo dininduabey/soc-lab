@@ -1,14 +1,14 @@
 ---
 # SSH hardening
-ssh_permit_root_login: "no"
-ssh_password_authentication: "no"
-ssh_max_auth_tries: 3
-ssh_client_alive_interval: 300
+common_ssh_permit_root_login: "no"
+common_ssh_password_authentication: "no"
+common_ssh_max_auth_tries: 3
+common_ssh_client_alive_interval: 300
 
 # fail2ban
-fail2ban_bantime: 3600
-fail2ban_findtime: 600
-fail2ban_maxretry: 5
+common_fail2ban_bantime: 3600
+common_fail2ban_findtime: 600
+common_fail2ban_maxretry: 5
 
 # Timezone — UTC everywhere so log correlation works
-system_timezone: "Etc/UTC"
+common_system_timezone: "Etc/UTC"

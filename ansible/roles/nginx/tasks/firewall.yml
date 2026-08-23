@@ -11,10 +11,12 @@
 # inserted at the position that REJECT currently occupies.
 - name: Find the position of the REJECT catch-all
   ansible.builtin.shell:
+    executable: /bin/bash
     cmd: >-
+      set -o pipefail;
       iptables -L INPUT --line-numbers -n
       | awk '$2=="REJECT" {print $1; exit}'
-  register: reject_line
+  register: nginx_reject_line
   changed_when: false
   become: true
 
@@ -26,7 +28,7 @@
     source: "10.0.0.0/16"
     jump: ACCEPT
     action: insert
-    rule_num: "{{ reject_line.stdout | default('1') | trim }}"
+    rule_num: "{{ nginx_reject_line.stdout | default('1') | trim }}"
     comment: "soc-lab: nginx from VCN"
   become: true
-  notify: persist iptables
+  notify: Persist iptables

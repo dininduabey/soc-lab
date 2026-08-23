@@ -2,10 +2,7 @@
 dvwa_dir: /opt/dvwa
 dvwa_image: "ghcr.io/digininja/dvwa:latest"
 
-# Bound to the host's private IP only — never 0.0.0.0.
+# Bound to the host's private interface only — never 0.0.0.0.
 # Reached via SSH tunnel through the bastion.
 dvwa_bind_address: "{{ private_ip | default(ansible_default_ipv4.address) }}"
 dvwa_port: 8080
-
-# nginx sits in front purely to generate access logs for the SIEM.
-nginx_port: 80

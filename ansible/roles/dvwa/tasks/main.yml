@@ -47,7 +47,7 @@
       networks:
         dvwa-net:
   become: true
-  notify: restart dvwa
+  notify: Restart dvwa
 
 - name: Start the DVWA stack
   ansible.builtin.command:

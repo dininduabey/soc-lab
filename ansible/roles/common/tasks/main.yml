@@ -6,9 +6,12 @@
 
 - name: Set timezone
   community.general.timezone:
-    name: "{{ system_timezone }}"
+    name: "{{ common_system_timezone }}"
   become: true
-  ignore_errors: true
+  register: common_tz
+  failed_when:
+    - common_tz.failed | default(false)
+    - "'timedatectl' not in (common_tz.msg | default(''))"
 
 - name: Update apt cache
   ansible.builtin.apt:
@@ -51,13 +54,13 @@
     content: |
       # Managed by Ansible. Named 01- so it is read before cloud-init's
       # drop-in; sshd uses the first value it encounters for each keyword.
-      PermitRootLogin {{ ssh_permit_root_login }}
-      PasswordAuthentication {{ ssh_password_authentication }}
-      MaxAuthTries {{ ssh_max_auth_tries }}
-      ClientAliveInterval {{ ssh_client_alive_interval }}
+      PermitRootLogin {{ common_ssh_permit_root_login }}
+      PasswordAuthentication {{ common_ssh_password_authentication }}
+      MaxAuthTries {{ common_ssh_max_auth_tries }}
+      ClientAliveInterval {{ common_ssh_client_alive_interval }}
       X11Forwarding no
   become: true
-  notify: restart sshd
+  notify: Restart sshd
 
 - name: Validate the full sshd configuration
   ansible.builtin.command: sshd -t
@@ -70,15 +73,15 @@
     mode: '0644'
     content: |
       [DEFAULT]
-      bantime  = {{ fail2ban_bantime }}
-      findtime = {{ fail2ban_findtime }}
-      maxretry = {{ fail2ban_maxretry }}
+      bantime  = {{ common_fail2ban_bantime }}
+      findtime = {{ common_fail2ban_findtime }}
+      maxretry = {{ common_fail2ban_maxretry }}
       backend  = systemd
 
       [sshd]
       enabled = true
   become: true
-  notify: restart fail2ban
+  notify: Restart fail2ban
 
 - name: Enable and start services
   ansible.builtin.service:

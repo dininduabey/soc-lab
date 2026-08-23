@@ -60,7 +60,7 @@
         }
       }
   become: true
-  notify: restart docker
+  notify: Restart docker
 
 - name: Ensure Docker is running and enabled
   ansible.builtin.service:
