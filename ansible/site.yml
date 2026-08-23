@@ -19,3 +19,10 @@
   gather_facts: true
   roles:
     - dvwa
+
+- name: Front DVWA with nginx for structured access logging
+  hosts: role_victim
+  become: true
+  gather_facts: true
+  roles:
+    - nginx

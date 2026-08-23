@@ -1,0 +1,4 @@
+---
+nginx_bind_address: "{{ private_ip | default(ansible_default_ipv4.address) }}"
+nginx_port: 80
+nginx_upstream: "{{ private_ip | default(ansible_default_ipv4.address) }}:8080"

@@ -1,0 +1,10 @@
+---
+- name: reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+  become: true
+
+- name: persist iptables
+  ansible.builtin.command: netfilter-persistent save
+  become: true

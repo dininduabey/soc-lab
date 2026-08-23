@@ -1,0 +1,32 @@
+---
+- name: Install iptables persistence
+  ansible.builtin.apt:
+    name: iptables-persistent
+    state: present
+    lock_timeout: 300
+  become: true
+
+# Oracle's Ubuntu image ends the INPUT chain with a REJECT
+# (icmp-host-prohibited). This rule must sit ABOVE it, so it is
+# inserted at the position that REJECT currently occupies.
+- name: Find the position of the REJECT catch-all
+  ansible.builtin.shell:
+    cmd: >-
+      iptables -L INPUT --line-numbers -n
+      | awk '$2=="REJECT" {print $1; exit}'
+  register: reject_line
+  changed_when: false
+  become: true
+
+- name: Allow HTTP from inside the VCN only
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "80"
+    source: "10.0.0.0/16"
+    jump: ACCEPT
+    action: insert
+    rule_num: "{{ reject_line.stdout | default('1') | trim }}"
+    comment: "soc-lab: nginx from VCN"
+  become: true
+  notify: persist iptables

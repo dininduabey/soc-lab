@@ -1,0 +1,62 @@
+---
+- name: Configure host firewall for HTTP
+  ansible.builtin.include_tasks: firewall.yml
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    lock_timeout: 300
+  become: true
+
+- name: Remove the default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  become: true
+  notify: reload nginx
+
+- name: Deploy the DVWA reverse-proxy site
+  ansible.builtin.copy:
+    dest: /etc/nginx/sites-available/dvwa
+    mode: '0644'
+    content: |
+      # Reverse proxy in front of DVWA.
+      # Exists to produce SIEM-consumable access logs.
+      server {
+          listen {{ nginx_bind_address }}:{{ nginx_port }};
+          server_name webvictim.soclab.local;
+
+          access_log /var/log/nginx/dvwa_access.log combined;
+          error_log  /var/log/nginx/dvwa_error.log warn;
+
+          location / {
+              proxy_pass http://{{ nginx_upstream }};
+              proxy_set_header Host              $host;
+              proxy_set_header X-Real-IP         $remote_addr;
+              proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+          }
+      }
+  become: true
+  notify: reload nginx
+
+- name: Enable the site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/dvwa
+    dest: /etc/nginx/sites-enabled/dvwa
+    state: link
+  become: true
+  notify: reload nginx
+
+- name: Validate nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  become: true
+
+- name: Ensure nginx is running and enabled
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+  become: true
