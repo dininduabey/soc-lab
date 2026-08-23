@@ -43,7 +43,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install linters
-        run: pip install ansible-lint yamllint
+        run: pip install ansible-core ansible-lint yamllint
+
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
 
       - name: yamllint
         run: yamllint -c .yamllint.yml ansible/
