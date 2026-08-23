@@ -1,0 +1,48 @@
+---
+- name: Install attack tooling
+  ansible.builtin.apt:
+    name: "{{ attacker_tools }}"
+    state: present
+    lock_timeout: 300
+  become: true
+
+- name: Create attack script directory
+  ansible.builtin.file:
+    path: "{{ attacker_script_dir }}"
+    state: directory
+    owner: ubuntu
+    mode: '0755'
+  become: true
+
+- name: Deploy the attack simulation script
+  ansible.builtin.copy:
+    src: run-attacks.sh
+    dest: "{{ attacker_script_dir }}/run-attacks.sh"
+    owner: ubuntu
+    mode: '0755'
+  become: true
+
+- name: Deploy a small password list for brute-force simulation
+  ansible.builtin.copy:
+    dest: "{{ attacker_script_dir }}/passwords.txt"
+    owner: ubuntu
+    mode: '0644'
+    content: |
+      123456
+      password
+      admin
+      letmein
+      qwerty
+      dvwa
+      root
+      toor
+  become: true
+
+- name: Schedule periodic attack simulation
+  ansible.builtin.cron:
+    name: "soc-lab attack simulation"
+    minute: "*/30"
+    user: ubuntu
+    job: "{{ attacker_script_dir }}/run-attacks.sh {{ hostvars[groups['role_victim'][0]]['private_ip'] }} >> /var/log/soc-attacks.log 2>&1"
+    state: present
+  become: true

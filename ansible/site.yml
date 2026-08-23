@@ -26,3 +26,10 @@
   gather_facts: true
   roles:
     - nginx
+
+- name: Install attack tooling on the bastion
+  hosts: role_bastion
+  become: true
+  gather_facts: true
+  roles:
+    - attacker

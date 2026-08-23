@@ -1,0 +1,7 @@
+---
+attacker_tools:
+  - nikto
+  - hydra
+  - nmap
+  - wapiti          # web vuln scanner, pure-python, light on a 1GB box
+attacker_script_dir: /opt/attack
