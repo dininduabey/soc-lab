@@ -1,0 +1,67 @@
+---
+- name: Create DVWA project directory
+  ansible.builtin.file:
+    path: "{{ dvwa_dir }}"
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Deploy docker-compose.yml
+  ansible.builtin.copy:
+    dest: "{{ dvwa_dir }}/docker-compose.yml"
+    mode: '0644'
+    content: |
+      # Deliberately vulnerable application. Bound to the private
+      # interface only; the subnet has no route from the internet.
+      services:
+        dvwa:
+          image: {{ dvwa_image }}
+          container_name: dvwa
+          restart: unless-stopped
+          ports:
+            - "{{ dvwa_bind_address }}:{{ dvwa_port }}:80"
+          environment:
+            - DB_SERVER=dvwa-db
+          depends_on:
+            - dvwa-db
+          networks:
+            - dvwa-net
+
+        dvwa-db:
+          image: docker.io/library/mariadb:10
+          container_name: dvwa-db
+          restart: unless-stopped
+          environment:
+            - MYSQL_ROOT_PASSWORD=dvwa_root_lab
+            - MYSQL_DATABASE=dvwa
+            - MYSQL_USER=dvwa
+            - MYSQL_PASSWORD=p@ssw0rd
+          volumes:
+            - dvwa-db-data:/var/lib/mysql
+          networks:
+            - dvwa-net
+
+      volumes:
+        dvwa-db-data:
+
+      networks:
+        dvwa-net:
+  become: true
+  notify: restart dvwa
+
+- name: Start the DVWA stack
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ dvwa_dir }}"
+  register: dvwa_up
+  changed_when: "'Started' in dvwa_up.stderr or 'Created' in dvwa_up.stderr"
+  become: true
+
+- name: Wait for DVWA to answer
+  ansible.builtin.uri:
+    url: "http://{{ dvwa_bind_address }}:{{ dvwa_port }}/login.php"
+    status_code: [200, 302]
+  register: dvwa_check
+  retries: 20
+  delay: 10
+  until: dvwa_check.status in [200, 302]

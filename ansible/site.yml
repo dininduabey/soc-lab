@@ -12,3 +12,10 @@
   gather_facts: true
   roles:
     - docker
+
+- name: Deploy the vulnerable target application
+  hosts: role_victim
+  become: true
+  gather_facts: true
+  roles:
+    - dvwa

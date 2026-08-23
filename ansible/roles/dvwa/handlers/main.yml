@@ -1,0 +1,6 @@
+---
+- name: restart dvwa
+  ansible.builtin.command:
+    cmd: docker compose up -d --force-recreate
+    chdir: "{{ dvwa_dir }}"
+  become: true
