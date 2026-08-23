@@ -17,3 +17,4 @@ tfplan
 # Ansible
 *.retry
 inventory/hosts.generated
+arm-retry.log

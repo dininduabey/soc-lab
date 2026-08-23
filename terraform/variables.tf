@@ -67,3 +67,34 @@ variable "admin_cidr" {
   description = "Your public IP in CIDR form. The ONLY source allowed to SSH in."
   type        = string
 }
+
+# ---- Compute ----
+variable "arm_ocpus" {
+  description = "ARM cores. Always Free ceiling is 2 since June 2026."
+  type        = number
+  default     = 2
+}
+
+variable "arm_memory_gb" {
+  description = "ARM memory. Always Free ceiling is 12 GB since June 2026."
+  type        = number
+  default     = 12
+}
+
+variable "boot_volume_gb" {
+  description = "Per-instance boot volume. 3 x 50 = 150 GB of the 200 GB free allowance."
+  type        = number
+  default     = 50
+}
+
+variable "micro_availability_domain" {
+  description = "AD for x86 micro instances. E2.1.Micro is only offered in one AD per tenancy."
+  type        = string
+  default     = "uKkk:EU-FRANKFURT-1-AD-1"
+}
+
+variable "create_arm_instance" {
+  description = "Toggle for the ARM host so the x86 tier can be applied while ARM capacity is unavailable."
+  type        = bool
+  default     = true
+}
