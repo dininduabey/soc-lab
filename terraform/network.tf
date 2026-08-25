@@ -73,6 +73,19 @@ resource "oci_core_security_list" "public" {
     }
   }
 
+  # Loki log ingestion from the private tier (Promtail push).
+  # The bastion also hosts monitoring, so it must accept this one
+  # intra-VCN inbound port in addition to SSH.
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = var.vcn_cidr
+    description = "Loki push from VCN"
+    tcp_options {
+      min = 3100
+      max = 3100
+    }
+  }
+
   # Path MTU discovery — prevents silent hangs on large transfers
   ingress_security_rules {
     protocol    = "1" # ICMP

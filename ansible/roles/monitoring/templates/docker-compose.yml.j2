@@ -1,0 +1,52 @@
+# {{ ansible_managed }}
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    restart: unless-stopped
+    mem_limit: 256m
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time={{ monitoring_prometheus_retention }}'
+      - '--storage.tsdb.retention.size=256MB'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom-data:/prometheus
+    ports:
+      - "{{ monitoring_bind }}:{{ monitoring_prometheus_port }}:9090"
+
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: loki
+    restart: unless-stopped
+    mem_limit: 256m
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    ports:
+      - "{{ monitoring_private_ip }}:{{ monitoring_loki_port }}:3100"
+
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD={{ monitoring_grafana_admin_password }}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "{{ monitoring_bind }}:{{ monitoring_grafana_port }}:3000"
+    depends_on:
+      - prometheus
+      - loki
+
+volumes:
+  prom-data:
+  loki-data:
+  grafana-data:

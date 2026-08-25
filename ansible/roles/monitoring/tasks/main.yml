@@ -1,0 +1,65 @@
+---
+- name: Create monitoring directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ monitoring_dir }}"
+    - "{{ monitoring_dir }}/provisioning/datasources"
+    - "{{ monitoring_dir }}/provisioning/dashboards/json"
+  become: true
+
+- name: Render config templates
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ monitoring_dir }}/{{ item.dest }}"
+    mode: '0644'
+  loop:
+    - {src: docker-compose.yml.j2, dest: docker-compose.yml}
+    - {src: prometheus.yml.j2, dest: prometheus.yml}
+    - {src: loki.yml.j2, dest: loki.yml}
+    - {src: provisioning/datasources/datasources.yml.j2, dest: provisioning/datasources/datasources.yml}
+    - {src: provisioning/dashboards/dashboards.yml.j2, dest: provisioning/dashboards/dashboards.yml}
+  become: true
+  notify: Restart monitoring stack
+
+- name: Copy dashboard JSON
+  ansible.builtin.copy:
+    src: dashboards/soc-overview.json
+    dest: "{{ monitoring_dir }}/provisioning/dashboards/json/soc-overview.json"
+    mode: '0644'
+  become: true
+  notify: Restart monitoring stack
+
+- name: Find the position of the REJECT catch-all
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: >-
+      set -o pipefail;
+      iptables -L INPUT --line-numbers -n
+      | awk '$2=="REJECT" {print $1; exit}'
+  register: monitoring_reject_line
+  changed_when: false
+  become: true
+
+- name: Open Loki to the VCN so the victim's Promtail can push
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ monitoring_loki_port }}"
+    source: "10.0.0.0/16"
+    jump: ACCEPT
+    action: insert
+    rule_num: "{{ monitoring_reject_line.stdout | default('1') | trim }}"
+    comment: "soc-lab: loki push from VCN"
+  become: true
+  notify: Persist iptables
+
+- name: Start the monitoring stack
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ monitoring_dir }}"
+  register: monitoring_up
+  changed_when: "'Started' in monitoring_up.stderr or 'Created' in monitoring_up.stderr"
+  become: true

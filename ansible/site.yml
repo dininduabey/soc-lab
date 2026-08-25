@@ -7,7 +7,7 @@
     - common
 
 - name: Install Docker where containers will run
-  hosts: role_victim:role_siem
+  hosts: role_victim:role_siem:role_bastion
   become: true
   gather_facts: true
   roles:
@@ -34,3 +34,10 @@
   gather_facts: true
   roles:
     - attacker
+
+- name: Deploy the monitoring stack on the bastion
+  hosts: role_bastion
+  become: true
+  gather_facts: true
+  roles:
+    - monitoring

@@ -3,3 +3,4 @@ metrics_target_metrics_bind_address: "{{ private_ip | default(ansible_default_ip
 metrics_target_node_exporter_port: 9100
 metrics_target_nginx_exporter_port: 9113
 metrics_target_node_exporter_version: "1.8.2"
+metrics_target_loki_endpoint: "http://{{ hostvars[groups['role_bastion'][0]]['private_ip'] }}:3100"

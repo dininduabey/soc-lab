@@ -1,0 +1,40 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "title": "nginx request rate",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "rate(nginx_http_requests_total[1m])", "legendFormat": "requests/s"}]
+    },
+    {
+      "title": "Victim CPU %",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)", "legendFormat": "cpu %"}]
+    },
+    {
+      "title": "Victim memory used %",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100", "legendFormat": "mem %"}]
+    },
+    {
+      "title": "Attack log stream (SQLi / XSS / traversal / scanners)",
+      "type": "logs",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 16},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"expr": "{job=\"nginx_access\"} |~ `(?i)(select|union|<script|alert\\(|etc/passwd|\\.\\./|nikto|hydra|sqlmap)`"}]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["soc-lab"],
+  "time": {"from": "now-3h", "to": "now"},
+  "title": "SOC Lab Overview",
+  "uid": "soc-overview",
+  "version": 1
+}

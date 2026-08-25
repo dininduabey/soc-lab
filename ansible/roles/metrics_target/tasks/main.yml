@@ -72,3 +72,48 @@
     - "{{ metrics_target_nginx_exporter_port }}"
   become: true
   notify: Persist iptables
+
+- name: Create promtail config directory
+  ansible.builtin.file:
+    path: /opt/promtail
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Deploy promtail config
+  ansible.builtin.copy:
+    dest: /opt/promtail/promtail.yml
+    mode: '0644'
+    content: |
+      server:
+        http_listen_port: 9080
+        grpc_listen_port: 0
+      positions:
+        filename: /tmp/positions.yaml
+      clients:
+        - url: {{ metrics_target_loki_endpoint }}/loki/api/v1/push
+      scrape_configs:
+        - job_name: nginx-access
+          static_configs:
+            - targets: [localhost]
+              labels:
+                job: nginx_access
+                host: web-victim
+                __path__: /var/log/nginx/dvwa_access.log
+  become: true
+  notify: Restart promtail
+
+- name: Run promtail on the victim
+  community.docker.docker_container:
+    name: promtail
+    image: grafana/promtail:3.2.0
+    state: started
+    restart_policy: unless-stopped
+    memory: "96m"
+    volumes:
+      - /opt/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/log/nginx:/var/log/nginx:ro
+      - promtail-pos:/tmp
+    command: -config.file=/etc/promtail/promtail.yml
+    network_mode: host
+  become: true
