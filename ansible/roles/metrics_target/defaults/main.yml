@@ -1,0 +1,5 @@
+---
+metrics_target_metrics_bind_address: "{{ private_ip | default(ansible_default_ipv4.address) }}"
+metrics_target_node_exporter_port: 9100
+metrics_target_nginx_exporter_port: 9113
+metrics_target_node_exporter_version: "1.8.2"

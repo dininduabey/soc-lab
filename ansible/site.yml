@@ -20,12 +20,13 @@
   roles:
     - dvwa
 
-- name: Front DVWA with nginx for structured access logging
+- name: Front DVWA with nginx and expose metrics
   hosts: role_victim
   become: true
   gather_facts: true
   roles:
     - nginx
+    - metrics_target
 
 - name: Install attack tooling on the bastion
   hosts: role_bastion

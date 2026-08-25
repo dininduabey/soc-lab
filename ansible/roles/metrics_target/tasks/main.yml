@@ -1,0 +1,74 @@
+---
+- name: Enable nginx stub_status for the exporter
+  ansible.builtin.copy:
+    dest: /etc/nginx/conf.d/stub_status.conf
+    mode: '0644'
+    content: |
+      # Local-only metrics endpoint consumed by nginx-prometheus-exporter
+      server {
+          listen 127.0.0.1:8081;
+          location /stub_status {
+              stub_status;
+          }
+      }
+  become: true
+  notify: Reload nginx
+
+- name: Run node_exporter (host metrics)
+  community.docker.docker_container:
+    name: node_exporter
+    image: "prom/node-exporter:v{{ metrics_target_node_exporter_version }}"
+    state: started
+    restart_policy: unless-stopped
+    memory: "64m"
+    published_ports:
+      - "{{ metrics_target_metrics_bind_address }}:{{ metrics_target_node_exporter_port }}:9100"
+    volumes:
+      - "/proc:/host/proc:ro"
+      - "/sys:/host/sys:ro"
+      - "/:/rootfs:ro"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+  become: true
+
+- name: Run nginx-prometheus-exporter
+  community.docker.docker_container:
+    name: nginx_exporter
+    image: "nginx/nginx-prometheus-exporter:1.3.0"
+    state: started
+    restart_policy: unless-stopped
+    memory: "32m"
+    network_mode: host
+    command:
+      - '--nginx.scrape-uri=http://127.0.0.1:8081/stub_status'
+      - '--web.listen-address={{ metrics_target_metrics_bind_address }}:{{ metrics_target_nginx_exporter_port }}'
+  become: true
+
+- name: Find the position of the REJECT catch-all
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: >-
+      set -o pipefail;
+      iptables -L INPUT --line-numbers -n
+      | awk '$2=="REJECT" {print $1; exit}'
+  register: metrics_target_reject_line
+  changed_when: false
+  become: true
+
+- name: Allow metrics scraping from the VCN
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ item }}"
+    source: "10.0.0.0/16"
+    jump: ACCEPT
+    action: insert
+    rule_num: "{{ metrics_target_reject_line.stdout | default('1') | trim }}"
+    comment: "soc-lab: metrics scrape {{ item }}"
+  loop:
+    - "{{ metrics_target_node_exporter_port }}"
+    - "{{ metrics_target_nginx_exporter_port }}"
+  become: true
+  notify: Persist iptables
