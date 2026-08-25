@@ -101,3 +101,52 @@
       APT::Periodic::Update-Package-Lists "1";
       APT::Periodic::Unattended-Upgrade "1";
   become: true
+
+- name: Check for existing swap
+  ansible.builtin.command: swapon --show
+  register: common_swap
+  changed_when: false
+  become: true
+
+- name: Create swap file
+  ansible.builtin.command: fallocate -l 2G /swapfile
+  args:
+    creates: /swapfile
+  become: true
+  when: common_swap.stdout == ""
+
+- name: Secure the swap file
+  ansible.builtin.file:
+    path: /swapfile
+    mode: '0600'
+  become: true
+  when: common_swap.stdout == ""
+
+- name: Format the swap file
+  ansible.builtin.command: mkswap /swapfile
+  register: common_mkswap
+  changed_when: "'Setting up swapspace' in common_mkswap.stdout"
+  failed_when:
+    - common_mkswap.rc != 0
+    - "'already' not in common_mkswap.stderr"
+  become: true
+  when: common_swap.stdout == ""
+
+- name: Enable swap and persist it
+  ansible.builtin.shell: |
+    swapon /swapfile
+    grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  args:
+    executable: /bin/bash
+  register: common_swapon
+  changed_when: true
+  become: true
+  when: common_swap.stdout == ""
+
+- name: Tune swappiness low (prefer RAM, swap only under pressure)
+  ansible.posix.sysctl:
+    name: vm.swappiness
+    value: '10'
+    state: present
+    sysctl_set: true
+  become: true

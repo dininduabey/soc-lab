@@ -58,3 +58,16 @@ terraform apply -var="create_arm_instance=false"   # rebuild x86 tier
 
 State lives in `terraform.tfstate` (gitignored). The lab is fully reproducible
 from code — no manual console steps.
+
+## Admin IP rotated (locked out of SSH)
+
+If SSH to the bastion times out after your ISP changes your public IP:
+
+```bash
+cd terraform
+sed -i "s|admin_cidr .*|admin_cidr       = \"$(curl -s https://api.ipify.org)/32\"|" terraform.tfvars
+terraform apply -target=oci_core_security_list.public
+```
+
+The `/32` restriction is deliberate — the bastion accepts SSH from one address
+only. A rotated IP locking you out is the control working as intended.
