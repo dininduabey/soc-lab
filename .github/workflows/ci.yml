@@ -51,8 +51,13 @@ jobs:
       - name: yamllint
         run: yamllint -c .yamllint.yml ansible/
 
+      - name: Provide a dummy vault password for parsing
+        run: echo "ci-dummy-not-a-real-secret" > "$HOME/.vault-ci"
+
       - name: ansible-lint
         working-directory: ansible
+        env:
+          ANSIBLE_VAULT_PASSWORD_FILE: /home/runner/.vault-ci
         run: ansible-lint --offline roles/ site.yml
 
   shellcheck:
