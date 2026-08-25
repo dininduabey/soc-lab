@@ -4,7 +4,6 @@ monitoring_bind: "127.0.0.1"          # tunnel-only; nothing on a public port
 monitoring_grafana_port: 3000
 monitoring_prometheus_port: 9090
 monitoring_loki_port: 3100
-monitoring_grafana_admin_password: "changeme_lab"
 # Scrape targets — the victim's exporters
 monitoring_victim_ip: "{{ hostvars[groups['role_victim'][0]]['private_ip'] }}"
 monitoring_prometheus_retention: "3d"  # trimmed hard for a 1GB box

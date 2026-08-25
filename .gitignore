@@ -18,3 +18,4 @@ tfplan
 *.retry
 inventory/hosts.generated
 arm-retry.log
+.soc-lab-vault-pass
