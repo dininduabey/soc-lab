@@ -94,3 +94,35 @@ ssh soc-jump "/opt/attack/run-attacks.sh <web-victim-private-ip>"
 ```
 
 Attacks also run automatically every 30 minutes via cron on the jumpbox.
+
+## Running a live attack + monitoring demo
+
+Watch the lab attack itself and see it land on the dashboard.
+
+**1. Open the Grafana tunnel** (leave this terminal open):
+
+```bash
+ssh -L 3000:localhost:3000 soc-jump
+```
+
+Browse to http://localhost:3000, log in as `admin`, then
+Dashboards -> SOC Lab -> SOC Lab Overview.
+
+**2. Trigger an attack** (in a second terminal):
+
+```bash
+ssh soc-jump "/opt/attack/run-attacks.sh <web-victim-private-ip>"
+```
+
+**3. View it.** Set the dashboard time range to "Last 30 minutes" and
+refresh (or set auto-refresh to 10s). Watch:
+- nginx request rate spike
+- victim CPU rise
+- the attack log stream fill with highlighted Nikto / script / injection lines
+
+The metric panels update first (Prometheus scrapes every 30s); the log panel
+follows a few seconds later (Loki ingestion). Widen the window and refresh if
+a panel shows "No data".
+
+Note: attacks also run automatically every 30 minutes via cron, so the
+dashboard shows periodic activity with no manual trigger.
