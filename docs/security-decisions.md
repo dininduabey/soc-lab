@@ -53,3 +53,29 @@ restart — so a bad edit fails the play rather than locking out the host.
   limits permanently, so trial expiry is a non-event.
 - Wazuh runs from native packages, not Docker — the indexer image is amd64-only
   and would run emulated (and OOM) on the ARM host.
+
+## Metrics pull vs. log push — a firewall asymmetry
+
+Prometheus metrics worked immediately but Loki log ingestion failed silently.
+Cause: Prometheus *pulls* (jumpbox initiates to victim, allowed intra-VCN),
+while Promtail *pushes* (victim initiates to jumpbox on :3100). The jumpbox's
+security list was written for a pure bastion — SSH inbound only — so it
+rejected the inbound Loki connection at the cloud firewall, before the host
+was ever reached. Fix: one explicit ingress rule for :3100 from the VCN CIDR,
+added in Terraform. Adding a receiving service to a bastion changes what
+"bastion" means for its firewall.
+
+## Grafana admin password only applies on first init
+
+`GF_SECURITY_ADMIN_PASSWORD` is honoured only when Grafana first creates the
+admin user. On an existing data volume it is ignored on restart. The vaulted
+password therefore applies correctly on a clean `terraform destroy` + rebuild
+(empty volume, user created fresh), but changing it on a live instance needs
+`grafana cli admin reset-admin-password`. The IaC is correct for fresh deploy;
+the CLI reset was a one-time migration, not a permanent workaround.
+
+## Secrets management
+
+The Grafana admin password is encrypted with Ansible Vault (`encrypt_string`
+in group_vars). No plaintext secret exists in the repository. The vault key
+lives outside the repo in the operator's home directory and is gitignored.

@@ -71,3 +71,26 @@ terraform apply -target=oci_core_security_list.public
 
 The `/32` restriction is deliberate — the bastion accepts SSH from one address
 only. A rotated IP locking you out is the control working as intended.
+
+## Access Grafana
+
+Grafana binds to localhost on the jumpbox only. Reach it by tunnel:
+
+```bash
+ssh -L 3000:localhost:3000 soc-jump
+# browse http://localhost:3000  (user: admin)
+```
+
+## Vault
+
+The Grafana password is Ansible-Vault encrypted. The vault key must exist at
+`~/.soc-lab-vault-pass` (referenced by `ansible.cfg`) for playbook runs to
+decrypt it. This file is never committed.
+
+## Trigger an attack manually
+
+```bash
+ssh soc-jump "/opt/attack/run-attacks.sh <web-victim-private-ip>"
+```
+
+Attacks also run automatically every 30 minutes via cron on the jumpbox.
