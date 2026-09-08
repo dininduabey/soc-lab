@@ -41,3 +41,10 @@
   gather_facts: true
   roles:
     - monitoring
+
+- name: Deploy the Wazuh SIEM on soc-core
+  hosts: role_siem
+  become: true
+  gather_facts: true
+  roles:
+    - wazuh_manager

@@ -1,0 +1,157 @@
+---
+- name: Install the Wazuh indexer
+  ansible.builtin.apt:
+    name: wazuh-indexer
+    state: present
+    lock_timeout: 300
+  become: true
+
+- name: Configure the indexer
+  ansible.builtin.copy:
+    dest: /etc/wazuh-indexer/opensearch.yml
+    mode: '0640'
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    content: |
+      network.host: "{{ wazuh_manager_wazuh_node_ip }}"
+      node.name: "{{ wazuh_manager_wazuh_node_name }}"
+      cluster.initial_master_nodes:
+        - "{{ wazuh_manager_wazuh_node_name }}"
+      cluster.name: wazuh-cluster
+      node.max_local_storage_nodes: 3
+      path.data: /var/lib/wazuh-indexer
+      path.logs: /var/log/wazuh-indexer
+
+      plugins.security.ssl.http.pemcert_filepath: certs/indexer.pem
+      plugins.security.ssl.http.pemkey_filepath: certs/indexer-key.pem
+      plugins.security.ssl.http.pemtrustedcas_filepath: certs/root-ca.pem
+      plugins.security.ssl.transport.pemcert_filepath: certs/indexer.pem
+      plugins.security.ssl.transport.pemkey_filepath: certs/indexer-key.pem
+      plugins.security.ssl.transport.pemtrustedcas_filepath: certs/root-ca.pem
+      plugins.security.ssl.http.enabled: true
+      plugins.security.ssl.transport.enforce_hostname_verification: false
+      plugins.security.ssl.transport.resolve_hostname: false
+
+      plugins.security.authcz.admin_dn:
+        - "CN=admin,OU=Wazuh,O=Wazuh,L=California,C=US"
+      plugins.security.nodes_dn:
+        - "CN={{ wazuh_manager_wazuh_node_name }},OU=Wazuh,O=Wazuh,L=California,C=US"
+
+      plugins.security.restapi.roles_enabled:
+        - "all_access"
+        - "security_rest_api_access"
+      plugins.security.allow_default_init_securityindex: true
+      plugins.security.check_snapshot_restore_write_privileges: true
+      plugins.security.enable_snapshot_restore_privilege: true
+  become: true
+  notify: Restart wazuh-indexer
+
+- name: Set the indexer JVM heap
+  ansible.builtin.copy:
+    dest: /etc/wazuh-indexer/jvm.options.d/heap.options
+    mode: '0644'
+    content: |
+      -Xms{{ wazuh_manager_wazuh_indexer_heap }}
+      -Xmx{{ wazuh_manager_wazuh_indexer_heap }}
+  become: true
+  notify: Restart wazuh-indexer
+
+- name: Create the indexer certs directory
+  ansible.builtin.file:
+    path: /etc/wazuh-indexer/certs
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: '0500'
+  become: true
+
+- name: Extract certs for the indexer
+  ansible.builtin.unarchive:
+    src: "{{ wazuh_manager_wazuh_install_dir }}/wazuh-certificates.tar"
+    dest: /etc/wazuh-indexer/certs
+    remote_src: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+  become: true
+
+- name: Rename node certs to the expected filenames
+  ansible.builtin.copy:
+    src: "/etc/wazuh-indexer/certs/{{ item.src }}"
+    dest: "/etc/wazuh-indexer/certs/{{ item.dest }}"
+    remote_src: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: '0400'
+  loop:
+    - { src: "{{ wazuh_manager_wazuh_node_name }}.pem", dest: "indexer.pem" }
+    - { src: "{{ wazuh_manager_wazuh_node_name }}-key.pem", dest: "indexer-key.pem" }
+    - { src: "admin.pem", dest: "admin.pem" }
+    - { src: "admin-key.pem", dest: "admin-key.pem" }
+  become: true
+
+- name: Set cert file permissions
+  ansible.builtin.file:
+    path: /etc/wazuh-indexer/certs
+    state: directory
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    recurse: true
+  become: true
+
+- name: Enable and start the indexer
+  ansible.builtin.systemd_service:
+    name: wazuh-indexer
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Wait for the indexer port to open
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_manager_wazuh_node_ip }}"
+    port: 9200
+    timeout: 180
+  become: true
+
+- name: Initialise the security index (once)
+  ansible.builtin.command:
+    cmd: >-
+      /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh
+      -cd /etc/wazuh-indexer/opensearch-security
+      -cacert /etc/wazuh-indexer/certs/root-ca.pem
+      -cert /etc/wazuh-indexer/certs/admin.pem
+      -key /etc/wazuh-indexer/certs/admin-key.pem
+      -h {{ wazuh_manager_wazuh_node_ip }}
+      -p 9200 -icl -nhnv
+    creates: /var/lib/wazuh-indexer/.security-initialized
+  environment:
+    JAVA_HOME: /usr/share/wazuh-indexer/jdk
+  become: true
+  register: wazuh_manager_secinit
+  changed_when: wazuh_manager_secinit.rc == 0
+
+- name: Mark security index initialised  # noqa: no-handler
+  ansible.builtin.file:
+    path: /var/lib/wazuh-indexer/.security-initialized
+    state: touch
+    mode: '0600'
+  become: true
+  when: wazuh_manager_secinit is changed
+
+- name: Wait for the indexer to answer
+  ansible.builtin.uri:
+    url: "https://{{ wazuh_manager_wazuh_node_ip }}:9200/_cluster/health"
+    method: GET
+    user: admin
+    password: admin
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: wazuh_manager_health
+  retries: 30
+  delay: 10
+  until: wazuh_manager_health.status == 200
+
+- name: Show cluster health
+  ansible.builtin.debug:
+    msg: "Indexer status: {{ wazuh_manager_health.json.status }}"

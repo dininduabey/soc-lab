@@ -1,0 +1,90 @@
+---
+- name: Install prerequisites
+  ansible.builtin.apt:
+    name:
+      - gnupg
+      - apt-transport-https
+      - curl
+      - tar
+      - debhelper
+      - libcap2-bin
+    state: present
+    lock_timeout: 300
+  become: true
+
+- name: Create install working directory
+  ansible.builtin.file:
+    path: "{{ wazuh_manager_wazuh_install_dir }}"
+    state: directory
+    mode: '0700'
+  become: true
+
+- name: Add the Wazuh GPG key
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH
+      | gpg --no-default-keyring
+      --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import
+      && chmod 644 /usr/share/keyrings/wazuh.gpg
+    executable: /bin/bash
+    creates: /usr/share/keyrings/wazuh.gpg
+  become: true
+
+- name: Add the Wazuh apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/wazuh.gpg]
+      https://packages.wazuh.com/4.x/apt/ stable main
+    filename: wazuh
+    state: present
+    update_cache: true
+  become: true
+
+- name: Download the certificate config template
+  ansible.builtin.copy:
+    dest: "{{ wazuh_manager_wazuh_install_dir }}/config.yml"
+    mode: '0600'
+    content: |
+      nodes:
+        indexer:
+          - name: {{ wazuh_manager_wazuh_node_name }}
+            ip: {{ wazuh_manager_wazuh_node_ip }}
+        server:
+          - name: {{ wazuh_manager_wazuh_node_name }}
+            ip: {{ wazuh_manager_wazuh_node_ip }}
+        dashboard:
+          - name: {{ wazuh_manager_wazuh_node_name }}
+            ip: {{ wazuh_manager_wazuh_node_ip }}
+  become: true
+
+- name: Fetch the Wazuh certs tool
+  ansible.builtin.get_url:
+    url: "https://packages.wazuh.com/{{ wazuh_manager_wazuh_version }}/wazuh-certs-tool.sh"
+    dest: "{{ wazuh_manager_wazuh_install_dir }}/wazuh-certs-tool.sh"
+    mode: '0700'
+  become: true
+
+- name: Generate the certificate bundle
+  ansible.builtin.command:
+    cmd: bash wazuh-certs-tool.sh -A
+    chdir: "{{ wazuh_manager_wazuh_install_dir }}"
+    creates: "{{ wazuh_manager_wazuh_install_dir }}/wazuh-certificates/root-ca.pem"
+  become: true
+
+- name: Package the certificates
+  community.general.archive:
+    path: "{{ wazuh_manager_wazuh_install_dir }}/wazuh-certificates/*"
+    dest: "{{ wazuh_manager_wazuh_install_dir }}/wazuh-certificates.tar"
+    format: tar
+    mode: '0600'
+  become: true
+
+- name: Confirm the cert bundle exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_manager_wazuh_install_dir }}/wazuh-certificates.tar"
+  register: wazuh_manager_wazuh_cert_bundle
+
+- name: Show cert generation result
+  ansible.builtin.debug:
+    msg: "Cert bundle present: {{ wazuh_manager_wazuh_cert_bundle.stat.exists }}"

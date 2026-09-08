@@ -1,0 +1,12 @@
+---
+- name: Stage 1 — certificates
+  ansible.builtin.import_tasks: 01-certs.yml
+
+- name: Stage 2 — indexer
+  ansible.builtin.import_tasks: 02-indexer.yml
+
+- name: Stage 3 — manager
+  ansible.builtin.import_tasks: 03-manager.yml
+
+- name: Stage 4 — dashboard
+  ansible.builtin.import_tasks: 04-dashboard.yml
