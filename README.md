@@ -50,6 +50,8 @@ graph LR
 
 ## Documentation
 
+- [**Setup guide**](docs/SETUP.md) — build this lab from zero, step by step
+
 - [Architecture](docs/architecture.md) — topology, hosts, isolation model
 - [Runbook](docs/runbook.md) — build, access, operate, tear down
 - [Security decisions](docs/security-decisions.md) — the non-obvious choices and why
