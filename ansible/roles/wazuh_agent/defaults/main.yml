@@ -1,0 +1,4 @@
+---
+# The manager's private IP — agents connect here to enroll and report.
+wazuh_agent_manager_ip: "{{ hostvars[groups['role_siem'][0]]['private_ip'] }}"
+wazuh_agent_version: "4.14"

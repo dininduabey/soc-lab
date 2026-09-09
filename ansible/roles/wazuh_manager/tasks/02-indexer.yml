@@ -18,6 +18,7 @@
       cluster.initial_master_nodes:
         - "{{ wazuh_manager_wazuh_node_name }}"
       cluster.name: wazuh-cluster
+      compatibility.override_main_response_version: true
       node.max_local_storage_nodes: 3
       path.data: /var/lib/wazuh-indexer
       path.logs: /var/log/wazuh-indexer

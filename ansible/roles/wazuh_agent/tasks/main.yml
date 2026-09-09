@@ -1,0 +1,55 @@
+---
+- name: Add the Wazuh GPG key
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH
+      | gpg --no-default-keyring
+      --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import
+      && chmod 644 /usr/share/keyrings/wazuh.gpg
+    executable: /bin/bash
+    creates: /usr/share/keyrings/wazuh.gpg
+  become: true
+
+- name: Add the Wazuh apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/wazuh.gpg]
+      https://packages.wazuh.com/4.x/apt/ stable main
+    filename: wazuh
+    state: present
+    update_cache: true
+  become: true
+
+- name: Install the Wazuh agent
+  ansible.builtin.apt:
+    name: wazuh-agent
+    state: present
+    lock_timeout: 300
+  environment:
+    WAZUH_MANAGER: "{{ wazuh_agent_manager_ip }}"
+    WAZUH_AGENT_GROUP: "default"
+  become: true
+
+- name: Set the manager address in the agent config
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: '<address>[^<]*</address>'
+    replace: "<address>{{ wazuh_agent_manager_ip }}</address>"
+  become: true
+  notify: Restart wazuh-agent
+
+- name: Enable and start the agent
+  ansible.builtin.systemd_service:
+    name: wazuh-agent
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Confirm the agent is connected
+  ansible.builtin.command: /var/ossec/bin/wazuh-control status
+  register: wazuh_agent_status
+  changed_when: false
+  failed_when: "'wazuh-agentd is running' not in wazuh_agent_status.stdout"
+  become: true
