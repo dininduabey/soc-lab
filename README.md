@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/dininduabey/soc-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/dininduabey/soc-lab/actions/workflows/ci.yml)
 
+![Wazuh SIEM — MITRE ATT&CK dashboard classifying simulated attacks](docs/images/mitre-attack.png)
+
+![Wazuh Threat Hunting — alert volume and technique breakdown](docs/images/threat-hunting.png)
+
 A reproducible Security Operations lab on Oracle Cloud **Always Free**, built
 entirely from code. Terraform provisions the network and hosts; Ansible
 discovers them by cloud tag and configures them. `terraform destroy` followed
