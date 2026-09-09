@@ -99,6 +99,29 @@
     creates: /usr/share/filebeat/module/wazuh
   become: true
 
+- name: Disable Filebeat ILM (Wazuh manages its own indices)
+  ansible.builtin.lineinfile:
+    path: /etc/filebeat/filebeat.yml
+    line: 'setup.ilm.enabled: false'
+    state: present
+  become: true
+  notify: Restart filebeat
+
+- name: Load the Filebeat index template into the indexer
+  ansible.builtin.command:
+    cmd: filebeat setup --index-management -E output.elasticsearch.hosts='["{{ wazuh_manager_wazuh_node_ip }}:9200"]'
+    creates: /var/ossec/.filebeat-index-loaded
+  become: true
+  register: wazuh_manager_fbsetup
+
+- name: Mark Filebeat index setup done  # noqa: no-handler
+  ansible.builtin.file:
+    path: /var/ossec/.filebeat-index-loaded
+    state: touch
+    mode: '0600'
+  become: true
+  when: wazuh_manager_fbsetup is changed
+
 - name: Enable and start Filebeat
   ansible.builtin.systemd_service:
     name: filebeat
