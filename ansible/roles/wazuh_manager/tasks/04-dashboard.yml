@@ -1,2 +1,109 @@
 ---
-# placeholder — filled in next stage
+- name: Install the Wazuh dashboard
+  ansible.builtin.apt:
+    name: wazuh-dashboard
+    state: present
+    lock_timeout: 300
+  become: true
+
+- name: Create the dashboard certs directory
+  ansible.builtin.file:
+    path: /etc/wazuh-dashboard/certs
+    state: directory
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: '0500'
+  become: true
+
+- name: Extract certs for the dashboard
+  ansible.builtin.unarchive:
+    src: "{{ wazuh_manager_wazuh_install_dir }}/wazuh-certificates.tar"
+    dest: /etc/wazuh-dashboard/certs
+    remote_src: true
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+  become: true
+
+- name: Place dashboard certs with expected names
+  ansible.builtin.copy:
+    src: "/etc/wazuh-dashboard/certs/{{ item.src }}"
+    dest: "/etc/wazuh-dashboard/certs/{{ item.dest }}"
+    remote_src: true
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: '0400'
+  loop:
+    - { src: "{{ wazuh_manager_wazuh_node_name }}.pem", dest: "dashboard.pem" }
+    - { src: "{{ wazuh_manager_wazuh_node_name }}-key.pem", dest: "dashboard-key.pem" }
+  become: true
+
+- name: Fix dashboard certs ownership
+  ansible.builtin.file:
+    path: /etc/wazuh-dashboard/certs
+    state: directory
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    recurse: true
+  become: true
+
+- name: Configure the dashboard
+  ansible.builtin.copy:
+    dest: /etc/wazuh-dashboard/opensearch_dashboards.yml
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: '0640'
+    content: |
+      server.host: "{{ wazuh_manager_wazuh_node_ip }}"
+      server.port: 443
+      opensearch.hosts: ["https://{{ wazuh_manager_wazuh_node_ip }}:9200"]
+      opensearch.ssl.verificationMode: certificate
+      opensearch.username: kibanaserver
+      opensearch.password: kibanaserver
+      opensearch.requestHeadersAllowlist: ["securitytenant", "Authorization"]
+      opensearch_security.multitenancy.enabled: false
+      server.ssl.enabled: true
+      server.ssl.key: "/etc/wazuh-dashboard/certs/dashboard-key.pem"
+      server.ssl.certificate: "/etc/wazuh-dashboard/certs/dashboard.pem"
+      opensearch.ssl.certificateAuthorities: ["/etc/wazuh-dashboard/certs/root-ca.pem"]
+      uiSettings.overrides.defaultRoute: /app/wz-home
+  become: true
+  notify: Restart wazuh-dashboard
+
+- name: Enable and start the dashboard
+  ansible.builtin.systemd_service:
+    name: wazuh-dashboard
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Open dashboard + manager ports to the VCN
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ item }}"
+    source: "10.0.0.0/16"
+    jump: ACCEPT
+    action: insert
+    rule_num: 5
+    comment: "soc-lab: wazuh {{ item }}"
+  loop:
+    - "443"
+    - "1514"
+    - "1515"
+  become: true
+
+- name: Wait for the dashboard to answer
+  ansible.builtin.uri:
+    url: "https://{{ wazuh_manager_wazuh_node_ip }}/app/status"
+    method: GET
+    validate_certs: false
+    status_code: [200, 302]
+  register: wazuh_manager_dash
+  retries: 24
+  delay: 10
+  until: wazuh_manager_dash.status in [200, 302]
+
+- name: Show dashboard result
+  ansible.builtin.debug:
+    msg: "Wazuh dashboard responding on https://{{ wazuh_manager_wazuh_node_ip }}"
