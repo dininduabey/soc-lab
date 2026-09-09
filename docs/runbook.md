@@ -189,3 +189,56 @@ Wait ~2 minutes for ingestion, then refresh the Wazuh dashboard. Host-layer
 signals (brute-force, scans) appear in Wazuh; web-layer payloads (SQLi, XSS)
 appear in the Grafana/Loki attack panel. Attacks also run automatically every
 30 minutes via cron on the jumpbox.
+
+## Session lifecycle — boot, attack, close
+
+### Boot (start a session)
+
+If the instances were only *stopped* (not destroyed), bring them back:
+
+```bash
+cd terraform && terraform apply   # starts/reconciles; keeps create_arm_instance=true
+cd ../ansible && ansible-playbook -i inventory/soclab.oci.yml site.yml   # optional: ensures config
+```
+
+If your home IP changed since last time, SSH will time out — update `admin_cidr`
+in `terraform/terraform.tfvars` and run
+`terraform apply -target=oci_core_security_list.public` first.
+
+### Attack and observe
+
+```bash
+ssh soc-jump "/opt/attack/run-attacks.sh <web-victim-private-ip>"
+```
+
+Then tunnel to the Wazuh dashboard (`ssh -L 8443:<soc-core-ip>:443 soc-jump`,
+browse https://localhost:8443) and watch under Threat Hunting / MITRE ATT&CK.
+Attacks also run automatically every 30 minutes via cron.
+
+### Close (end a session)
+
+Nothing to clean up manually — disk retention is automatic:
+- A daily cron (`/usr/local/bin/wazuh-retention.sh`, 03:30) deletes alert
+  indices and raw logs older than 3 days, via the OpenSearch API.
+- Docker log rotation and manager archive logging are capped.
+
+You may leave the lab running (no cost on the free tier). To fully idle it you
+*can* stop the instances, but stopping the ARM host risks not regaining scarce
+free ARM capacity on restart — leaving it running is safer.
+
+### Disk check (if you ever suspect a full disk)
+
+```bash
+# free space on the SIEM host
+ansible -i inventory/soclab.oci.yml role_siem -b -m shell -a "df -h /"
+
+# force a retention run now
+ansible -i inventory/soclab.oci.yml role_siem -b -m shell -a "/usr/local/bin/wazuh-retention.sh"
+```
+
+### Full teardown / rebuild
+
+```bash
+cd terraform && terraform destroy      # removes everything
+# later: terraform apply + arm-capacity-retry.sh + ansible-playbook to rebuild
+```

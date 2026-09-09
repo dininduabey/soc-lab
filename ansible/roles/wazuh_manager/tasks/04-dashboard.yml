@@ -107,3 +107,51 @@
 - name: Show dashboard result
   ansible.builtin.debug:
     msg: "Wazuh dashboard responding on https://{{ wazuh_manager_wazuh_node_ip }}"
+
+- name: Deploy the alert-log retention script (manager side)
+  ansible.builtin.copy:
+    dest: /usr/local/bin/wazuh-retention.sh
+    mode: '0755'
+    content: |
+      #!/usr/bin/env bash
+      # Keep the lab's disk healthy over long unattended runs.
+      # 1) Trim the manager's raw alert/archive logs older than 3 days.
+      # 2) Delete indexer alert indices older than 3 days — via the API only
+      #    (never from the filesystem, which corrupts the index).
+      set -uo pipefail
+      RETENTION_DAYS=3
+      IP="{{ wazuh_manager_wazuh_node_ip }}"
+
+      # Raw manager logs
+      find /var/ossec/logs/alerts/   -type f -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
+      find /var/ossec/logs/archives/ -type f -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
+
+      # Indexer alert indices, via API, by date in the index name
+      cutoff=$(date -d "-${RETENTION_DAYS} days" +%Y.%m.%d)
+      for idx in $(curl -s -k -u admin:admin \
+            "https://${IP}:9200/_cat/indices/wazuh-alerts-4.x-*?h=index" 2>/dev/null | sort); do
+        idate=$(echo "$idx" | grep -oE '[0-9]{4}\.[0-9]{2}\.[0-9]{2}$')
+        [ -z "$idate" ] && continue
+        if [[ "$idate" < "$cutoff" ]]; then
+          curl -s -k -u admin:admin -XDELETE "https://${IP}:9200/${idx}" >/dev/null 2>&1 || true
+        fi
+      done
+  become: true
+
+- name: Schedule daily retention cleanup
+  ansible.builtin.cron:
+    name: "wazuh lab retention"
+    minute: "30"
+    hour: "3"
+    user: root
+    job: "/usr/local/bin/wazuh-retention.sh"
+    state: present
+  become: true
+
+- name: Disable manager archive logging to limit disk growth
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: '<logall_json>yes</logall_json>'
+    replace: '<logall_json>no</logall_json>'
+  become: true
+  failed_when: false

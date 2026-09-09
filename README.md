@@ -63,8 +63,16 @@ graph LR
 ## Quick start
 
 ```bash
+# 1. Build the network + x86 hosts (always available)
 cd terraform && terraform init && terraform apply -var="create_arm_instance=false"
-../scripts/arm-capacity-retry.sh          # obtains the ARM host
+
+# 2. Obtain the scarce ARM SIEM host (retry loop; can take minutes to days)
+../scripts/arm-capacity-retry.sh
+#    Once it succeeds, set  create_arm_instance = true  in terraform.tfvars
+#    so a plain apply never destroys it.
+
+# 3. Configure everything: hardening, Docker, DVWA, Grafana stack,
+#    attack tooling, the Wazuh SIEM, and agents
 cd ../ansible && ansible-playbook -i inventory/soclab.oci.yml site.yml
 ```
 
