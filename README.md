@@ -77,3 +77,30 @@ cd ../ansible && ansible-playbook -i inventory/soclab.oci.yml site.yml
 ```
 
 See the [runbook](docs/runbook.md) for prerequisites and detail.
+
+
+## Live demo
+
+Show the lab attacking itself and getting caught. **Open the dashboard first, then attack**, so the graph moves live in front of your audience.
+
+```bash
+# 0. Pre-flight: confirm your IP still has SSH access
+ssh soc-jump "echo ready"
+
+# 1. Dashboard tunnel (Terminal 1 - leave open). Port 8443 -> Wazuh SIEM.
+ssh -L 8443:<soc-core-private-ip>:443 soc-jump
+#    Browse https://localhost:8443 -> log in -> Threat Hunting -> Last 24 hours -> auto-refresh on
+
+# 2. Fire the attack (Terminal 2). No tunnel needed - runs on the jumpbox.
+ssh soc-jump "/opt/attack/run-attacks.sh <web-victim-private-ip>"
+
+# 3. Wait ~1-2 min for ingestion, watch the spike appear in Threat Hunting and MITRE ATT&CK.
+```
+
+Optional - Grafana (Terminal 3), the faster-updating view as a fallback:
+
+```bash
+ssh -L 3000:localhost:3000 soc-jump   # then browse http://localhost:3000
+```
+
+Get private IPs with `terraform -chdir=terraform output`. If SSH times out, your home IP rotated - see the [runbook](docs/runbook.md).
