@@ -1,2 +1,122 @@
 ---
-# placeholder — filled in next stage
+- name: Install the Wazuh manager
+  ansible.builtin.apt:
+    name: wazuh-manager
+    state: present
+    lock_timeout: 300
+  become: true
+
+- name: Enable and start the manager
+  ansible.builtin.systemd_service:
+    name: wazuh-manager
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Wait for the manager API to come up
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_manager_wazuh_node_ip }}"
+    port: 55000
+    timeout: 120
+  become: true
+
+# ---- Filebeat: ships manager alerts into the indexer ----
+
+- name: Install Filebeat
+  ansible.builtin.apt:
+    name: filebeat
+    state: present
+    lock_timeout: 300
+  become: true
+
+- name: Deploy the Wazuh Filebeat config
+  ansible.builtin.get_url:
+    url: "https://packages.wazuh.com/{{ wazuh_manager_wazuh_version }}/tpl/wazuh/filebeat/filebeat.yml"
+    dest: /etc/filebeat/filebeat.yml
+    mode: '0644'
+  become: true
+  notify: Restart filebeat
+
+- name: Point Filebeat at the indexer
+  ansible.builtin.replace:
+    path: /etc/filebeat/filebeat.yml
+    regexp: '^(\s*hosts:\s*).*$'
+    replace: '\g<1>["{{ wazuh_manager_wazuh_node_ip }}:9200"]'
+  become: true
+  notify: Restart filebeat
+
+- name: Set the Filebeat indexer credentials
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      echo admin | filebeat keystore add username --stdin --force
+      echo admin | filebeat keystore add password --stdin --force
+    executable: /bin/bash
+  become: true
+  changed_when: true
+
+- name: Create the Filebeat certs directory
+  ansible.builtin.file:
+    path: /etc/filebeat/certs
+    state: directory
+    mode: '0500'
+  become: true
+
+- name: Extract certs for Filebeat
+  ansible.builtin.unarchive:
+    src: "{{ wazuh_manager_wazuh_install_dir }}/wazuh-certificates.tar"
+    dest: /etc/filebeat/certs
+    remote_src: true
+  become: true
+
+- name: Place Filebeat certs with expected names
+  ansible.builtin.copy:
+    src: "/etc/filebeat/certs/{{ item.src }}"
+    dest: "/etc/filebeat/certs/{{ item.dest }}"
+    remote_src: true
+    mode: '0400'
+  loop:
+    - { src: "{{ wazuh_manager_wazuh_node_name }}.pem", dest: "filebeat.pem" }
+    - { src: "{{ wazuh_manager_wazuh_node_name }}-key.pem", dest: "filebeat-key.pem" }
+  become: true
+
+- name: Download the Wazuh alerts template for the indexer
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/wazuh/wazuh/v{{ wazuh_manager_wazuh_version }}.0/extensions/elasticsearch/7.x/wazuh-template.json"
+    dest: /etc/filebeat/wazuh-template.json
+    mode: '0644'
+  become: true
+  failed_when: false
+
+- name: Install the wazuh Filebeat module
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      curl -s https://packages.wazuh.com/4.x/filebeat/wazuh-filebeat-0.4.tar.gz
+      | tar -xvz -C /usr/share/filebeat/module
+    executable: /bin/bash
+    creates: /usr/share/filebeat/module/wazuh
+  become: true
+
+- name: Enable and start Filebeat
+  ansible.builtin.systemd_service:
+    name: filebeat
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Verify core manager processes are running
+  ansible.builtin.command: /var/ossec/bin/wazuh-control status
+  register: wazuh_manager_status
+  changed_when: false
+  failed_when: >-
+    'wazuh-analysisd is running' not in wazuh_manager_status.stdout
+    or 'wazuh-remoted is running' not in wazuh_manager_status.stdout
+    or 'wazuh-apid is running' not in wazuh_manager_status.stdout
+  become: true
+
+- name: Show manager status
+  ansible.builtin.debug:
+    msg: "{{ wazuh_manager_status.stdout_lines }}"
