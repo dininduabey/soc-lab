@@ -84,10 +84,12 @@ See the [runbook](docs/runbook.md) for prerequisites and detail.
 Show the lab attacking itself and getting caught. **Open the dashboard first, then attack**, so the graph moves live in front of your audience.
 
 ```bash
-# 0. Pre-flight: confirm your IP still has SSH access
+# 0. Get current instance IPs (they change on rebuild) + confirm SSH access
+cd terraform && terraform output && cd ..
 ssh soc-jump "echo ready"
 
 # 1. Dashboard tunnel (Terminal 1 - leave open). Port 8443 -> Wazuh SIEM.
+#    Use soc_core_private_ip from step 0 in place of <soc-core-private-ip>.
 ssh -L 8443:<soc-core-private-ip>:443 soc-jump
 #    Browse https://localhost:8443 -> log in -> Threat Hunting -> Last 24 hours -> auto-refresh on
 
